@@ -15,3 +15,4 @@ You can get the source code in two ways:
 * **Option B (Git Clone):** Run the following command in your terminal:
   ```bash
   git clone [https://github.com/abidin-tech/blarta-make.git](https://github.com/abidin-tech/blarta-make.git)
+   This is very simple and took me half an hour, and you can develop it further.  You can do it for Android and Windows.    
