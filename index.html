@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>صانع ومحاكي ألعاب MKP المطور</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h2 {
+            margin: 5px 0 10px 0;
+            font-size: 1.2rem;
+            color: #00d2d3;
+        }
+
+        /* حاوية الأزرار الرئيسية */
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 10px 6px;
+            background-color: #2e86de;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .btn-success { background-color: #10ac84; }
+        .btn-warning { background-color: #ff9f43; }
+        .btn-purple  { background-color: #8395a7; }
+        .btn-tabs    { background-color: #5f27cd; }
+
+        input[type="file"] { display: none; }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* تبويب المحررات */
+        .tab-content {
+            display: none;
+            width: 100%;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* محرر الأكواد */
+        textarea {
+            width: 100%;
+            height: 220px;
+            background-color: #1e272e;
+            color: #54a0ff;
+            font-family: monospace;
+            font-size: 0.85rem;
+            padding: 12px;
+            border: 2px solid #341f97;
+            border-radius: 8px;
+            resize: vertical;
+            direction: ltr;
+            text-align: left;
+            tab-size: 2;
+            outline: none;
+        }
+
+        /* محرر السبرايت Sprite Editor */
+        .sprite-editor-container {
+            background-color: #1e272e;
+            padding: 12px;
+            border-radius: 8px;
+            border: 2px solid #5f27cd;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sprite-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+            width: 200px;
+            height: 200px;
+            background-color: #000;
+            border: 2px solid #fff;
+        }
+
+        .pixel {
+            background-color: transparent;
+            border: 1px solid #333;
+            cursor: pointer;
+        }
+
+        .palette {
+            display: flex;
+            gap: 6px;
+        }
+
+        .color-btn {
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+
+        /* شاشة اللعبة */
+        canvas#gameCanvas {
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            background-color: #000000;
+            border: 2px solid #576574;
+            border-radius: 8px;
+            touch-action: none;
+        }
+
+        #status {
+            font-size: 0.8rem;
+            color: #c8d6e5;
+            text-align: center;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>🎨 صانع ومحاكي ألعاب .MKP</h2>
+
+    <div class="toolbar">
+        <button class="btn btn-success" onclick="runCode()">▶ تشغيل</button>
+        <button class="btn btn-tabs" onclick="toggleTab('codeTab')">💻 الكود</button>
+        <button class="btn btn-tabs" onclick="toggleTab('spriteTab')">🎨 السبرايت</button>
+        <button class="btn btn-warning" onclick="exportMKP()">💾 تصدير .mkp</button>
+        <label for="fileInput" class="btn btn-purple">📂 فتح .mkp</label>
+        <input type="file" id="fileInput" accept=".mkp,.zip">
+    </div>
+
+    <div class="container">
+        <!-- تبويب محرر الأكواد -->
+        <div id="codeTab" class="tab-content active">
+            <textarea id="codeEditor" spellcheck="false"></textarea>
+        </div>
+
+        <!-- تبويب محرر السبرايت (Sprite Editor 8x8) -->
+        <div id="spriteTab" class="tab-content">
+            <div class="sprite-editor-container">
+                <div style="font-size: 0.9rem;">ارسم شخصيتك (8×8):</div>
+                <div id="spriteGrid" class="sprite-grid"></div>
+                
+                <!-- ألوان الرسم -->
+                <div class="palette">
+                    <div class="color-btn" style="background:#000000;" onclick="selectColor('#000000')"></div>
+                    <div class="color-btn" style="background:#ff4757;" onclick="selectColor('#ff4757')"></div>
+                    <div class="color-btn" style="background:#2ed573;" onclick="selectColor('#2ed573')"></div>
+                    <div class="color-btn" style="background:#1e90ff;" onclick="selectColor('#1e90ff')"></div>
+                    <div class="color-btn" style="background:#ffa502;" onclick="selectColor('#ffa502')"></div>
+                    <div class="color-btn" style="background:#ffffff;" onclick="selectColor('#ffffff')"></div>
+                </div>
+                <button class="btn btn-purple" style="width:100%" onclick="clearSpriteGrid()">مسح الرسم</button>
+            </div>
+        </div>
+
+        <!-- شاشة اللعبة -->
+        <canvas id="gameCanvas" width="400" height="300"></canvas>
+    </div>
+
+    <div id="status">جاهز لكتابة الأكواد والرسومات...</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const editor = document.getElementById('codeEditor');
+        const statusDiv = document.getElementById('status');
+        let gameLoopId = null;
+
+        // مصفوفة حفظ بكسلات السبرايت (8x8)
+        let spriteData = Array(64).fill('#000000');
+        let selectedColor = '#ff4757';
+
+        // 1. إنشاء شبكة السبرايت
+        const spriteGrid = document.getElementById('spriteGrid');
+        for (let i = 0; i < 64; i++) {
+            const pixel = document.createElement('div');
+            pixel.className = 'pixel';
+            pixel.onclick = () => {
+                spriteData[i] = selectedColor;
+                pixel.style.backgroundColor = selectedColor;
+            };
+            spriteGrid.appendChild(pixel);
+        }
+
+        function selectColor(color) { selectedColor = color; }
+        
+        function clearSpriteGrid() {
+            spriteData.fill('#000000');
+            document.querySelectorAll('.pixel').forEach(p => p.style.backgroundColor = '#000000');
+        }
+
+        function toggleTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        // 2. الكود الافتراضي الذي يستخدم السبرايت المرسوم
+        const defaultCode = `// --- كود تجريبي يستخدم السبرايت المرسوم ---
+let x = 180, y = 120;
+
+return {
+    init: function() {
+        window.onpointerdown = (e) => {
+            let rect = engine.canvas.getBoundingClientRect();
+            x = (e.clientX - rect.left) * (engine.width / rect.width) - 16;
+            y = (e.clientY - rect.top) * (engine.height / rect.height) - 16;
+        };
+    },
+    update: function() {
+        engine.clear('#1e1e24');
+        
+        // رسم السبرايت الذي قمت برسمه في تبويب السبرايت!
+        engine.drawSprite(engine.sprite, x, y, 4); // التكبير x4
+        
+        engine.drawText("المس الشاشة لنقل السبرايت", 80, 40, "#feca57", 16);
+    }
+};`;
+
+        editor.value = defaultCode;
+
+        // 3. محرك تشغيل الكود مع إمكانية رسم السبرايت (Engine Runtime)
+        function runCode() {
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+
+            const engineAPI = {
+                ctx: ctx,
+                canvas: canvas,
+                width: canvas.width,
+                height: canvas.height,
+                sprite: spriteData, // التمرير المباشر للسبرايت الحالي
+                clear: (color = "#000") => {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                },
+                drawRect: (x, y, w, h, color) => {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y, w, h);
+                },
+                drawText: (text, x, y, color = "#fff", size = 16) => {
+                    ctx.fillStyle = color;
+                    ctx.font = `${size}px sans-serif`;
+                    ctx.fillText(text, x, y);
+                },
+                // دالة رسم السبرايت البكسلي
+                drawSprite: (data, posX, posY, pixelSize = 2) => {
+                    if (!data) return;
+                    for (let i = 0; i < 64; i++) {
+                        let px = i % 8;
+                        let py = Math.floor(i / 8);
+                        if (data[i] !== '#000000') { // تجاوز اللون الأسود لتوفير الشفافية
+                            ctx.fillStyle = data[i];
+                            ctx.fillRect(posX + (px * pixelSize), posY + (py * pixelSize), pixelSize, pixelSize);
+                        }
+                    }
+                }
+            };
+
+            try {
+                const gameFunction = new Function('engine', editor.value);
+                const gameInstance = gameFunction(engineAPI);
+
+                if (gameInstance && typeof gameInstance.init === 'function') {
+                    gameInstance.init();
+                }
+
+                function loop() {
+                    if (gameInstance && typeof gameInstance.update === 'function') {
+                        gameInstance.update();
+                    }
+                    gameLoopId = requestAnimationFrame(loop);
+                }
+
+                gameLoopId = requestAnimationFrame(loop);
+                statusDiv.textContent = "⚡ تعمل اللعبة حالياً...";
+            } catch (err) {
+                statusDiv.textContent = "❌ خطأ برمي: " + err.message;
+            }
+        }
+
+        // 4. تصدير اللعبة مع ملف السبرايت في حزمة .MKP
+        async function exportMKP() {
+            try {
+                const zip = new JSZip();
+                const manifest = { name: "MKP Sprite Game", version: "1.0" };
+
+                zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+                zip.file("main.js", editor.value);
+                zip.file("sprite.json", JSON.stringify(spriteData)); // حفظ الرسمة
+
+                const content = await zip.generateAsync({ type: "blob" });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = "my_game.mkp";
+                link.click();
+
+                statusDiv.textContent = "✅ تم تصدير الملف مع السبرايت!";
+            } catch (err) {
+                statusDiv.textContent = "❌ فشل التصدير: " + err.message;
+            }
+        }
+
+        // 5. استيراد الملف وقراءة السبرايت
+        document.getElementById('fileInput').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const zip = new JSZip();
+                const zipContent = await zip.loadAsync(file);
+
+                if (zipContent.file("main.js")) {
+                    editor.value = await zipContent.file("main.js").async("text");
+                    
+                    // استرجاع السبرايت إذا كان موجوداً
+                    if (zipContent.file("sprite.json")) {
+                        const loadedSprite = JSON.parse(await zipContent.file("sprite.json").async("text"));
+                        spriteData = loadedSprite;
+                        
+                        // تحديث شكل محرر السبرايت
+                        document.querySelectorAll('.pixel').forEach((p, index) => {
+                            p.style.backgroundColor = spriteData[index];
+                        });
+                    }
+
+                    statusDiv.textContent = "📂 تم فتح ملف .mkp والسبرايت بنجاح!";
+                    runCode();
+                }
+            } catch (err) {
+                statusDiv.textContent = "❌ خطأ أثناء قراءة الملف";
+            }
+        });
+
+        runCode();
+    </script>
+</body>
+</html>
